@@ -21,7 +21,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -32,7 +31,7 @@ public class LoggingFilter implements Filter {
     private static final Logger logger = LoggerFactory.getLogger(LoggingFilter.class);
     private final ObjectMapper mapper = new ObjectMapper();
 
-    @Value("${mini.vault.log.filepath}")
+    @Value("${mini.vault.log.filepathwithname}")
     private String logFilePathWithFileName;
 
     @Override
@@ -48,19 +47,10 @@ public class LoggingFilter implements Filter {
 
         Map<String, Object> logData = new LinkedHashMap<>();
         logData.put("timestamp", LocalDateTime.now().toString());
-        logData.put("method", wrappedRequest.getMethod());
-        logData.put("path", wrappedRequest.getRequestURI());
         logData.put("durationMs", duration);
-
-        Map<String, Object> requestMap = new HashMap<>();
-        requestMap.put("headers", getHeadersMap(wrappedRequest));
-        requestMap.put("body", parseJsonOrReturnString(getRequestBody(wrappedRequest)));
-        logData.put("request", requestMap);
-
-        Map<String, Object> responseMap = new HashMap<>();
-        responseMap.put("status", wrappedResponse.getStatus());
-        responseMap.put("body", parseJsonOrReturnString(getResponseBody(wrappedResponse)));
-        logData.put("response", responseMap);
+        logData.put("request", parseJsonOrReturnString(getRequestBody(wrappedRequest)));
+        logData.put("response", parseJsonOrReturnString(getResponseBody(wrappedResponse)));
+        logData.put("status", wrappedResponse.getStatus());
 
         logger.info(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(logData));
         logDataToFile(logData);
