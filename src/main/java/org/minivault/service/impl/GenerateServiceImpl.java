@@ -15,7 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
+import reactor.core.publisher.FluxSink;
 
 @Service
 public class GenerateServiceImpl implements GenerateService {
@@ -33,18 +33,22 @@ public class GenerateServiceImpl implements GenerateService {
 
         GeneratorServiceResponse generatorServiceResponse = callToGenerator(promptGenerateRequest);
 
-        PromptGenerateResponse  promptGenerateResponse = new PromptGenerateResponse();
+        PromptGenerateResponse promptGenerateResponse = new PromptGenerateResponse();
         promptGenerateResponse.setResponse(generatorServiceResponse.getUserQueryResponse());
         return promptGenerateResponse;
     }
 
     @Override
-    public void generateFromPromptToStream(@NonNull PromptGenerateRequest promptGenerateRequest, @NonNull ResponseBodyEmitter emitter) throws Exception {
+    public PromptGenerateResponse generateFromPromptToStream(@NonNull PromptGenerateRequest promptGenerateRequest, @NonNull FluxSink<String> emitter) throws Exception {
         validateRequest(promptGenerateRequest);
         GeneratorServiceRequest request = new  GeneratorServiceRequest();
         request.setUserQuery(promptGenerateRequest.getPrompt());
         GeneratorService generatorService = ctx.getBean(generatorType, GeneratorService.class);
-        generatorService.generateResponseToStream(request, emitter);
+        GeneratorServiceResponse generatorServiceResponse =  generatorService.generateResponseToStream(request, emitter);
+
+        PromptGenerateResponse promptGenerateResponse = new PromptGenerateResponse();
+        promptGenerateResponse.setResponse(generatorServiceResponse.getUserQueryResponse());
+        return promptGenerateResponse;
     }
 
     private GeneratorServiceResponse callToGenerator(@NonNull PromptGenerateRequest promptGenerateRequest) throws Exception {

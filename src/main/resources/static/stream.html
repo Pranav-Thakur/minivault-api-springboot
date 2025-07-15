@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>MiniVault AI Stream</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .chat-container {
+            background: white;
+            width: 100%;
+            max-width: 720px;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chat-log {
+            max-height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 10px;
+            line-height: 1.5;
+            max-width: 80%;
+            white-space: pre-wrap;
+        }
+
+        .user {
+            background-color: #daf1ff;
+            align-self: flex-end;
+        }
+
+        .bot {
+            background-color: #f0f0f0;
+            align-self: flex-start;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: auto;
+        }
+
+        input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        button {
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #005fa3;
+        }
+
+        .typing-indicator {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+            justify-content: flex-start;
+            height: 20px;
+            margin-top: 4px;
+        }
+
+        .typing-indicator span {
+            width: 6px;
+            height: 6px;
+            background-color: #999;
+            border-radius: 50%;
+            animation: blink 1.2s infinite ease-in-out;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes blink {
+            0%, 80%, 100% {
+                opacity: 0.3;
+                transform: scale(0.8);
+            }
+            40% {
+                opacity: 1;
+                transform: scale(1.2);
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <h2>💬 MiniVault Chat Stream</h2>
+
+    <div class="input-group">
+        <input type="text" id="promptInput" placeholder="Ask something..." />
+        <button onclick="sendPrompt()">Send</button>
+    </div>
+
+    <div class="chat-log" id="chatLog"></div>
+
+</div>
+<script>
+    document.getElementById("promptInput").addEventListener("keydown", function(event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault(); // prevent newline
+            sendPrompt(); // call your existing function
+        }
+    });
+
+    async function sendPrompt() {
+        const chatLog = document.getElementById("chatLog");
+        const promptInput = document.getElementById("promptInput");
+        const prompt = promptInput.value.trim();
+        if (!prompt) return;
+
+        // Add user message
+        const userMsg = document.createElement("div");
+        userMsg.className = "message user";
+        userMsg.textContent = prompt;
+        chatLog.appendChild(userMsg);
+
+        // Add bot placeholder
+        const botMsg = document.createElement("div");
+        botMsg.className = "message bot";
+        chatLog.appendChild(botMsg);
+
+        // Add typing indicator
+        const typing = document.createElement("div");
+        typing.className = "typing-indicator";
+        typing.innerHTML = "<span></span><span></span><span></span>";
+        botMsg.appendChild(typing);
+        chatLog.appendChild(botMsg);
+
+        promptInput.value = "";
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        try {
+            const response = await fetch("/api/v2/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ "prompt": prompt })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = "";
+            let firstChunk = true;
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                fullText += chunk;
+
+                if (firstChunk) {
+                    // Remove typing animation after first chunk
+                    botMsg.removeChild(typing);
+                    firstChunk = false;
+                }
+
+                botMsg.textContent = fullText;
+                chatLog.scrollTop = chatLog.scrollHeight;
+            }
+
+        } catch (err) {
+            botMsg.textContent = "⚠️ Error while receiving stream.";
+        }
+    }
+</script>
+
+</body>
+</html>

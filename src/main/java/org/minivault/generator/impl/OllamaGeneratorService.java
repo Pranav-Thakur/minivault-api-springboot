@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
+import reactor.core.publisher.FluxSink;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -42,15 +42,18 @@ public class OllamaGeneratorService implements GeneratorService {
     }
 
     @Override
-    public void generateResponseToStream(@NonNull GeneratorServiceRequest generatorServiceRequest, @NonNull ResponseBodyEmitter emitter) throws Exception {
+    public GeneratorServiceResponse generateResponseToStream(@NonNull GeneratorServiceRequest generatorServiceRequest, @NonNull FluxSink<String> emitter) throws Exception {
         try {
-            callOllamaStream(generatorServiceRequest.getUserQuery(), emitter);
+            GeneratorServiceResponse response = new GeneratorServiceResponse();
+            response.setUserQueryResponse(callOllamaStream(generatorServiceRequest.getUserQuery(), emitter));
+            return response;
         } catch (Exception e) {
             throw new MiniVaultException("Error generating reponse from ollama", ErrorCodes.INTERNAL_SERVER_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    private void callOllamaStream(@NonNull String userQuery, @NonNull ResponseBodyEmitter emitter) throws Exception {
+    private String callOllamaStream(@NonNull String userQuery, @NonNull  FluxSink<String> emitter) throws Exception {
+        StringBuilder fullResponse = new StringBuilder();
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setDoOutput(true);
         connection.setRequestMethod("POST");
@@ -73,11 +76,14 @@ public class OllamaGeneratorService implements GeneratorService {
                 if (!line.trim().isEmpty()) {
                     JsonNode json = mapper.readTree(line);
                     String token = json.get("response").asText();
-                    emitter.send(token, MediaType.TEXT_PLAIN);
+                    fullResponse.append(token);
+                    if (!emitter.isCancelled()) emitter.next(token);
                 }
             }
-            emitter.complete();
+            if (!emitter.isCancelled()) emitter.complete();
         }
+
+        return fullResponse.toString();
     }
 
     private String callOllama(@NonNull String prompt) {

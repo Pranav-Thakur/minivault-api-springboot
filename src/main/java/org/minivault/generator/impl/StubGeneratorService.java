@@ -5,7 +5,7 @@ import org.minivault.generator.GeneratorService;
 import org.minivault.generator.payload.GeneratorServiceRequest;
 import org.minivault.generator.payload.GeneratorServiceResponse;
 import org.springframework.stereotype.Service;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
+import reactor.core.publisher.FluxSink;
 
 @Service("stub")
 public class StubGeneratorService implements GeneratorService {
@@ -21,10 +21,13 @@ public class StubGeneratorService implements GeneratorService {
     }
 
     @Override
-    public void generateResponseToStream(@NonNull GeneratorServiceRequest generatorServiceRequest, @NonNull ResponseBodyEmitter emitter) throws Exception {
+    public GeneratorServiceResponse generateResponseToStream(@NonNull GeneratorServiceRequest generatorServiceRequest, @NonNull FluxSink<String> emitter) throws Exception {
         String prompt = generatorServiceRequest.getUserQuery();
         String stubResponse = "Echo: " + prompt;
-        emitter.send(stubResponse);
-        emitter.complete();
+        if (!emitter.isCancelled()) emitter.next(stubResponse);
+
+        GeneratorServiceResponse response = new GeneratorServiceResponse();
+        response.setUserQueryResponse(stubResponse);
+        return response;
     }
 }

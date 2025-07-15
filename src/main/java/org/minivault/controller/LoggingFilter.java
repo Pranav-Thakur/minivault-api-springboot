@@ -25,7 +25,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@Component
+/*
+Not required now, so removing the component part
+ */
+
+//@Component
 public class LoggingFilter implements Filter {
 
     private static final Logger logger = LoggerFactory.getLogger(LoggingFilter.class);
@@ -37,6 +41,13 @@ public class LoggingFilter implements Filter {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
+        String path = ((HttpServletRequest) request).getRequestURI();
+
+        // 🛑 Bypass logging for streaming endpoints
+        if (path.startsWith("/api/v2/generate") || path.startsWith("/health")) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper((HttpServletRequest) request);
         ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper((HttpServletResponse) response);
@@ -53,12 +64,15 @@ public class LoggingFilter implements Filter {
         logData.put("status", wrappedResponse.getStatus());
 
         logger.info(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(logData));
-        logDataToFile(logData);
+        logDataToFile(logData, path);
 
         wrappedResponse.copyBodyToResponse();
     }
 
-    private void logDataToFile(@NonNull Map<String, Object> logData) throws IOException {
+    private void logDataToFile(@NonNull Map<String, Object> logData, @NonNull String path) throws IOException {
+        if (!path.startsWith("/api/v2/generate") && !path.startsWith("/api/v1/generate")) {
+            return;
+        }
 
         File logDir = new File(getDirFromFilePathWithName(logFilePathWithFileName));
         if (!logDir.exists()) {
